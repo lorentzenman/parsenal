@@ -29,8 +29,8 @@ def parse_nipper_file():
 ######################################################################
 
 
-def parse_john_log(logfile):
-	csv_file = open('/root/Desktop/parsenal_john_cracked.csv' , 'wt')
+def parse_john_log(logfile, csvfile):
+	csv_file = open(csvfile , 'wt')
 	writer = csv.writer(csv_file)
 	writer.writerow(('TimeCracked','UserAccount','Password'))
 
@@ -44,7 +44,7 @@ def parse_john_log(logfile):
 			username = line[3].replace(":","")
 			password = line[4]
 			
-			print redtxt(timestamp) + "Cracked :" + username + " : " + password
+			print redtxt(timestamp) + "Cracked : " + username + " : " + password
 			writer.writerow((timestamp, username, password))
 
 	print greentxt("----------------------------------------------")
@@ -87,10 +87,16 @@ def parse_nessus_file_db(nessus_doc, checkfor, db):
 				print greentxt("[::] Found: ") + host_name + " : " + redtxt(host_port) + " :: " + plugin_name
 				# write to database
 				plugin_output = reportItem.getElementsByTagName("plugin_output")
-				plugin_output = plugin_output[0].firstChild.nodeValue
-				# add this plugin output to the relevant table, formatting of output is kept when populating the table which is cool
-				db.execute("INSERT INTO issues(host_ipaddress, host_name, host_port, plugin_name, plugin_output) VALUES(?,?,?,?,?)", (host_name, host_name, host_port, plugin_name, plugin_output))
-					
+				# adds a check for the plugin output being empty
+				# in the db case this needs execute a db_query based on the check
+				if len(plugin_output) > 0:
+					plugin_output = plugin_output[0].firstChild.nodeValue
+					# add this plugin output to the relevant table, formatting of output is kept when populating the table which is cool
+					db.execute("INSERT INTO issues(host_ipaddress, host_name, host_port, plugin_name, plugin_output) VALUES(?,?,?,?,?)", (host_name, host_name, host_port, plugin_name, plugin_output))
+				else:
+					# execute the query without the plugin_output
+					db.execute("INSERT INTO issues(host_ipaddress, host_name, host_port, plugin_name) VALUES(?,?,?,?)", (host_name, host_name, host_port, plugin_name))
+
 				db.commit()
 
 
@@ -110,21 +116,17 @@ def parse_nessus_file_txt(nessus_doc, checkfor):
 			host_port = reportItem.attributes['port'].value
 			# if this is something to check for in the list
 			if plugin_name in checkfor:
-#	debug			print plugin_name
-#	debug			raw_input("....")
 				host_output.write(hrline)
 				host_output.write("[::] " + plugin_name + "\n")
-				host_output.write(hrline)
 				host_output.write(hrline)
 				print greentxt("[::] Found: ") + host_name + " : " + redtxt(host_port) + " :: " + plugin_name
-				host_output.write("[::] " + plugin_name + "\n")
-				host_output.write(hrline)
 				host_output.write(host_name + ":" + host_port + "\n")
 				plugin_output = reportItem.getElementsByTagName("plugin_output")
-				plugin_output = plugin_output[0].firstChild.nodeValue
-				#print plugin_output
-				host_output.write(plugin_output + "\n")
-				host_output.write("\n")
+				if len(plugin_output) > 0:
+					plugin_output = plugin_output[0].firstChild.nodeValue
+					#print plugin_output
+					host_output.write(plugin_output + "\n")
+					host_output.write("\n")
 		# now close the text file for this host
 		host_output.close()
 	
@@ -172,14 +174,14 @@ def main():
 	# Nessus Parse Group
 	nessus_parse_group = parser.add_argument_group('Nessus', 'Nessus File Parsing Options')
 
-	nessus_parse_group.add_argument("-o", "--output", help="Specify the output type : <txt> <db>", required=True)
+	nessus_parse_group.add_argument("-o", "--output", help="Specify the output type : <txt> <db>")
 
 
 	# John Parse Group
 	john_parse_group = parser.add_argument_group('John', 'John File Parsing Options')
-	
+	john_parse_group.add_argument("--csvfile", help="Path to CSV File Output for logfile")
+
 	args = parser.parse_args()
-	
 	print args
 	
 	if args.mode == "nessus":
@@ -195,7 +197,10 @@ def main():
 		"SSL RC4 Cipher Suites Supported",
 		"SSLv2",
 		"OS Identification",
-		"Microsoft Windows Summary of Missing Patches"
+		"Microsoft Windows Summary of Missing Patches",
+		"SSLv3 Padding Oracle On Downgraded Legacy Encryption Vulnerability (POODLE)",
+		"Terminal Services Doesn't Use Network Level Authentication (NLA) Only"
+		
 		]
 	
 
@@ -216,7 +221,7 @@ def main():
 		print "The file to parse is Nessus"
 	elif args.mode == "john":
 		print "The file to parse is a John the Ripper Log File"
-		#arse_john_log(args.inputfile)
+		parse_john_log(args.inputfile, args.csvfile)
 	else:
 		print "Invalid File Type"
 
