@@ -1,8 +1,7 @@
 #!/usr/bin/python
-""" Output File Parser using Python
+""" Parsenal is an Output File Parser using Python
 Author : Matt Lorentzen
-Date: September 2014
-Version: added Database support
+Original Date: September 2014
 """
 
 from xml.dom import minidom
@@ -10,8 +9,6 @@ import sqlite3
 import sys
 import argparse
 import csv
-
-
 
 #The parsing loop
 # creates a text file in current directory to append with the host name and any/all of the output for the list specified above
@@ -87,7 +84,7 @@ def parse_nessus_file_db(nessus_doc, checkfor, db):
 				print greentxt("[::] Found: ") + host_name + " : " + redtxt(host_port) + " :: " + plugin_name
 				# write to database
 				plugin_output = reportItem.getElementsByTagName("plugin_output")
-				# adds a check for the plugin output being empty
+				# adds a check for the plugin output being empty ie equal to 0
 				# in the db case this needs execute a db_query based on the check
 				if len(plugin_output) > 0:
 					plugin_output = plugin_output[0].firstChild.nodeValue
@@ -199,7 +196,8 @@ def main():
 		"OS Identification",
 		"Microsoft Windows Summary of Missing Patches",
 		"SSLv3 Padding Oracle On Downgraded Legacy Encryption Vulnerability (POODLE)",
-		"Terminal Services Doesn't Use Network Level Authentication (NLA) Only"
+		"Terminal Services Doesn't Use Network Level Authentication (NLA) Only",
+		"SSL Version 2 and 3 Protocol Detection"
 		
 		]
 	
