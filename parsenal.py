@@ -13,6 +13,23 @@ import csv
 #The parsing loop
 # creates a text file in current directory to append with the host name and any/all of the output for the list specified above
 
+
+def banner():
+
+	banner = """
+                                       _ 
+ _ __   __ _ _ __ ___  ___ _ __   __ _| |
+| '_ \ / _` | '__/ __|/ _ \ '_ \ / _` | |
+| |_) | (_| | |  \__ \  __/ | | | (_| | |
+| .__/ \__,_|_|  |___/\___|_| |_|\__,_|_|
+|_|
+
+"""
+
+	print banner
+
+
+
 #######################################################################
 #   Parse Files - Nipper
 ######################################################################
@@ -163,6 +180,7 @@ def bluetxt(text2colour):
 
 	
 def main():
+	banner()
 	parser = argparse.ArgumentParser(description='Parsenal File Options')
 	parser.add_argument("mode", help='Program mode (nessus, john, nipper)')
 	parser.add_argument("inputfile", help="Path to the file to parse")
@@ -172,7 +190,7 @@ def main():
 	nessus_parse_group = parser.add_argument_group('Nessus', 'Nessus File Parsing Options')
 
 	nessus_parse_group.add_argument("-o", "--output", help="Specify the output type : <txt> <db>")
-
+	nessus_parse_group.add_argument("-d", "--dbname", help="Specify the name of the sqlite3 database")
 
 	# John Parse Group
 	john_parse_group = parser.add_argument_group('John', 'John File Parsing Options')
@@ -197,7 +215,16 @@ def main():
 		"Microsoft Windows Summary of Missing Patches",
 		"SSLv3 Padding Oracle On Downgraded Legacy Encryption Vulnerability (POODLE)",
 		"Terminal Services Doesn't Use Network Level Authentication (NLA) Only",
-		"SSL Version 2 and 3 Protocol Detection"
+		"SSL Version 2 and 3 Protocol Detection",
+		"HP Data Protector 8.x Arbitrary Command Execution (HPSBMU03072)",
+		"HP Data Protector 'EXEC_INTEGUTIL' Arbitrary Command Execution",
+		"MS14-066: Vulnerability in Schannel Could Allow Remote Code Execution (2992611) (uncredentialed check) ",
+		"MS15-034: Vulnerability in HTTP.sys Could Allow Remote Code Execution (3042553) (uncredentialed check)",
+		"VMware vCenter Server Multiple Java Vulnerabilities (VMSA-2015-0003) (POODLE)",
+		"SNMP Agent Default Community Name (public)",
+		"Oracle TNS Listener Remote Poisoning",
+		"NTP monlist Command Enabled",
+		"NFS Share User Mountable"
 		
 		]
 	
@@ -208,7 +235,7 @@ def main():
 		if args.output == "txt":
 			parse_nessus_file_txt(nessus_doc, checkfor)
 		else:
-			db_name = raw_input("Enter a database name :eg scans.db : ")
+			db_name = args.dbname
 			# create a connection to the database
 			db = sqlite3.connect(db_name)
 			# setup database structure
