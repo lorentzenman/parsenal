@@ -3,23 +3,19 @@
 Author : Matt Lorentzen
 Original Date: September 2014
 """
-# version 0.4
-
 
 from xml.dom import minidom
 import sqlite3
 import sys
 import argparse
 import csv
-
-#The parsing loop
-# creates a text file in current directory to append with the host name and any/all of the output for the list specified above
+import os
 
 
 def banner():
 
 	banner = """
-                                       _ 
+                                       _
  _ __   __ _ _ __ ___  ___ _ __   __ _| |
 | '_ \ / _` | '__/ __|/ _ \ '_ \ / _` | |
 | |_) | (_| | |  \__ \  __/ | | | (_| | |
@@ -31,20 +27,9 @@ def banner():
 
 	print yellowtxt(banner)
 
-
-
-#######################################################################
-#   Parse Files - Nipper
-######################################################################
-
-
-def parse_nipper_file():
-	pass
-
 #######################################################################
 #   Parse Files - John
 ######################################################################
-
 
 def parse_john_log(logfile, csvfile):
 	csv_file = open(csvfile , 'wt')
@@ -60,7 +45,7 @@ def parse_john_log(logfile, csvfile):
 			timestamp = line[0]
 			username = line[3].replace(":","")
 			password = line[4]
-			
+
 			print redtxt(timestamp) + "Cracked : " + username + " : " + password
 			writer.writerow((timestamp, username, password))
 
@@ -70,7 +55,6 @@ def parse_john_log(logfile, csvfile):
 #######################################################################
 #   Parse Files - Nessus
 ######################################################################
-
 
 def setupDB(db):
 	""" Create cursor and setup tables """
@@ -85,16 +69,10 @@ def setupDB(db):
 				plugin_output TEXT,
 				severity INTEGER
 				)
-	""")   
-
-
+	""")
 
 def parse_nessus_file_db(nessus_doc, checkfor, db, all_issues, infoplugins):
 	""" Parses nessus file and outputs to sqlite database """
-#	issuefile = open(issuefile, 'r')
-#	checkfor = issuefile.readlines()
-#	issuefile.close()
-
 	for reportHost in nessus_doc.getElementsByTagName("ReportHost"):
 		# start individual host parse
 		host_name = reportHost.attributes["name"].value
@@ -109,7 +87,7 @@ def parse_nessus_file_db(nessus_doc, checkfor, db, all_issues, infoplugins):
 					print "The plugin is : " + redtxt(plugin_name) + " >> severity is " + yellowtxt(severity_rating) + " :: " + host_name
 					# write to database
 					plugin_output = reportItem.getElementsByTagName("plugin_output")
-	
+
 					# adds a check for the plugin output being empty ie equal to 0
 					# in the db case this needs execute a db_query based on the check
 					if len(plugin_output) > 0:
@@ -139,17 +117,12 @@ def parse_nessus_file_db(nessus_doc, checkfor, db, all_issues, infoplugins):
 						else:
 							# execute the query without the plugin_output
 							db.execute("INSERT INTO issues(host_ipaddress, host_name, host_port, plugin_name) VALUES(?,?,?,?)", (host_name, host_name, host_port, plugin_name))
-
+						# ensure that everything is commited to the database
 						db.commit()
-
-
 
 def parse_nessus_file_txt(nessus_doc, checkfor):
 	""" Writes out to the text file """
 	hrline = "-------------------------------------------------------------------------------------\n"
-#	issuefile = open(issuefile, 'r')
-#	checkfor = issuefile.readlines()
-#	issuefile.close()
 	for reportHost in nessus_doc.getElementsByTagName("ReportHost"):
 		# start individual host parse
 		host_name = reportHost.attributes["name"].value
@@ -172,7 +145,13 @@ def parse_nessus_file_txt(nessus_doc, checkfor):
 					host_output.write("\n")
 		# now close the text file for this host
 		host_output.close()
-	
+
+def grab_directory_listing(directory_list):
+	# Gets the files in a supplied directory
+	file_collection = os.listdir(directory_list)
+	return file_collection
+
+
 
 #######################################################################
 #   Formating and helper functions
@@ -191,12 +170,12 @@ def greentxt(text2colour):
 	greenstart = "\033[0;32m"
 	greenend = "\033[0m"
 	return greenstart + text2colour + greenend
-	
+
 def yellowtxt(text2colour):
 	yellowstart = "\033[0;33m"
 	yellowend = "\033[0m"
 	return yellowstart + text2colour + yellowend
-	
+
 def bluetxt(text2colour):
 	bluestart = "\033[0;34m"
 	blueend = "\033[0m"
@@ -241,103 +220,94 @@ def check_for():
 	"NTP monlist Command Enabled",
 	"NFS Share User Mountable"
 	]
-	
+
 	return checkfor
 
 
 #######################################################################
-#	Main Function   
+#	Main Function
 #######################################################################
 
-	
+
 def main():
 	banner()
-	parser = argparse.ArgumentParser(description='Parsenal File Options')
-	parser.add_argument("mode", help='Program mode (nessus, john, nipper)')
-	parser.add_argument("inputfile", help="Path to the file to parse")
 
-		
+	# Main Parser Setup
+	parser = argparse.ArgumentParser(description="Parsenal File Options")
+	main_parser = parser.add_argument_group('Main Program', 'Core Program Settings')
+	main_parser.add_argument("-m", "--mode", help="Program mode (nessus, john)", required=True)
+	# Group to require either file or directory
+	input_choice_group = parser.add_argument_group()
+	input_choice = input_choice_group.add_mutually_exclusive_group(required=True)
+	input_choice.add_argument("-i", "--inputfile", help="Path to the file to parse")
+	input_choice.add_argument("-dr", "--directory", help="Specify path to directory containing Files eg /path/folder/")
+
+
 	# Nessus Parse Group
 	nessus_parse_group = parser.add_argument_group('Nessus', 'Nessus File Parsing Options')
 
 	nessus_parse_group.add_argument("-o", "--output", help="Specify the output type : <txt> <db>")
-	nessus_parse_group.add_argument("-d", "--dbname", help="Specify the name of the SQLite3 database\n")
+	nessus_parse_group.add_argument("-d", "--dbname", help="Specify the name of the SQLite3 database")
 	nessus_parse_group.add_argument("-a", "--all_issues", action="store_true", default=False, help="Using '-a' or '--all_issues' will grab all the ISSUE output into the SQLite3 database")
-	
+
+
+
+
+
 	# John Parse Group
 	john_parse_group = parser.add_argument_group('John', 'John File Parsing Options')
 	john_parse_group.add_argument("--csvfile", help="Path to CSV File Output for logfile")
 
+	# counts the supplied number of arguments and prints help if they are missing
+	if len(sys.argv)==1:
+		parser.print_help()
+		sys.exit(1)
 	args = parser.parse_args()
-#	print args
-	
-	if args.mode == "nessus":
-				
-	
-		print "The file to parse is from Nessus"
-		nessus_doc = minidom.parse(args.inputfile)
 
-		# checking lists	
+	if args.mode == "nessus":
+		# checking lists
 		checkfor = check_for()
 		infoplugins = info_plugins()
 
-	
-	#	issuefile = args.issue
 		if args.output == "txt":
-			parse_nessus_file_txt(nessus_doc, checkfor)
-
+			if args.directory:
+				directory_to_parse = os.listdir(args.directory)
+				print directory_to_parse
+				for directory_file in directory_to_parse:
+					if directory_file.endswith(".nessus"):
+						directory_file = (str(args.directory) + directory_file)
+						print directory_file
+						nessus_doc = minidom.parse(directory_file)
+						parse_nessus_file_txt(nessus_doc, checkfor)
+			else:
+				nessus_doc = minidom.parse(args.inputfile)
+				parse_nessus_file_txt(nessus_doc, checkfor)
 		else:
-
+			# setup as sqlite db
 			db_name = args.dbname
-			# create a connection to the database
 			db = sqlite3.connect(db_name)
-			# setup database structure
 			setupDB(db)
+
 			all_issues = args.all_issues
-			parse_nessus_file_db(nessus_doc, checkfor, db, all_issues, infoplugins)
-	
-	elif args.mode == "nipper":
-		print "The file to parse is Nessus"
+			if not args.dbname:
+				parser.print_help()
+			if args.directory:
+				directory_to_parse = os.listdir(args.directory)
+				for directory_file in directory_to_parse:
+					if directory_file.endswith(".nessus"):
+						directory_file = (str(args.directory) + directory_file)
+						nessus_doc = minidom.parse(directory_file)
+						parse_nessus_file_db(nessus_doc, checkfor, db, all_issues, infoplugins)
+			else:
+				nessus_doc = minidom.parse(args.inputfile)
+				parse_nessus_file_db(nessus_doc, checkfor, db, all_issues, infoplugins)
+
 	elif args.mode == "john":
 		print "The file to parse is a John the Ripper Log File"
 		parse_john_log(args.inputfile, args.csvfile)
 	else:
 		print "Invalid File Type"
-
-
 	hrline = "-------------------------------------------------------------------------------------\n"
 
-	
 if __name__ ==  "__main__":
 	main()
-
-
-"""
-		checkfor = [
-		"Microsoft Windows Remote Desktop Protocol Server Man-in-the-Middle Weakness",
-		"Patch Report", 
-		"MS08-067: Microsoft Windows Server Service Crafted RPC Request Handling Unspecified Remote Code Execution (958644)",
-		"FTP Supports Clear Text Authentication",
-		"Microsoft Windows SMB NULL Session Authentication",
-		"SSL Self-Signed Certificate",
-		"SSL RC4 Cipher Suites Supported",
-		"SSLv2",
-		"OS Identification",
-		"Microsoft Windows Summary of Missing Patches",
-		"SSLv3 Padding Oracle On Downgraded Legacy Encryption Vulnerability (POODLE)",
-		"Terminal Services Doesn't Use Network Level Authentication (NLA) Only",
-		"SSL Version 2 and 3 Protocol Detection",
-		"HP Data Protector 8.x Arbitrary Command Execution (HPSBMU03072)",
-		"HP Data Protector 'EXEC_INTEGUTIL' Arbitrary Command Execution",
-		"MS14-066: Vulnerability in Schannel Could Allow Remote Code Execution (2992611) (uncredentialed check) ",
-		"MS15-034: Vulnerability in HTTP.sys Could Allow Remote Code Execution (3042553) (uncredentialed check)",
-		"VMware vCenter Server Multiple Java Vulnerabilities (VMSA-2015-0003) (POODLE)",
-		"SNMP Agent Default Community Name (public)",
-		"Oracle TNS Listener Remote Poisoning",
-		"NTP monlist Command Enabled",
-		"NFS Share User Mountable"
-		
-		]
-	
-"""
-
