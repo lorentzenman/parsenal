@@ -53,6 +53,7 @@ def setupDB(db_cursor):
 def parse_nessus_file(nessus_doc, db_cursor, all_issues, infoplugins):
     """ Parses nessus file and sends to write function for  output to sqlite database """
     # debug  print
+    print "\n[*] Parsing File : " + nessus_doc + '\n'
     for event,elem in ET.iterparse(nessus_doc):
         if event == "end":
             if elem.tag == "ReportHost":
@@ -77,7 +78,7 @@ def parse_nessus_file(nessus_doc, db_cursor, all_issues, infoplugins):
                         if severity_rating > 0 or plugin_name in infoplugins:
                             db_cursor.execute("INSERT INTO issues(host_ipaddress, host_name, host_port, plugin_name, plugin_output, severity) VALUES(?,?,?,?,?,?)", (host_name, host_name, port, plugin_name, plugin_output, severity_rating))
                             db_cursor.commit() 
-              # clear the assigned memory for this loop    
+                # clear the assigned memory for this loop    
                 elem.clear()
 
 
@@ -113,7 +114,7 @@ def grab_directory_listing(directory_list):
 
 def launch_console(db_cursor):
     """ Calls the initial console function """
-    banner()
+#    banner()
     console_banner = """    
 Parsenal Interactive SQL Console
 ------------------------------------------
@@ -246,7 +247,7 @@ Parsenal Interactive SQL Console
         elif command.startswith("tables"):
             print_database_table_structure()
     
-        elif command.startswith("exit"):
+        elif command.startswith("exit") or command.startswith("quit"):
             print "Exiting Parsenal"
             sys.exit(0) 
 
@@ -295,16 +296,16 @@ def get_output(shortcut):
         sql_query = "select distinct plugin_name from issues;"
 
     elif shortcut == 'windows_patches':
-        sql_query = "select host_name, plugin_output from issues where plugin_name = 'Microsoft Windows Summary of Missing Patches';"
+        sql_query = "select 'Missing Windows patches on '|| host_name, plugin_output from issues where plugin_name = 'Microsoft Windows Summary of Missing Patches';"
 
     elif shortcut == 'selfsigned':
-        sql_query = "select host_name, host_port, plugin_output from issues where plugin_name = 'SSL Self-Signed Certificate';"
+        sql_query = "select 'Host : ' || host_name || ' on port ' || host_port, plugin_output from issues where plugin_name = 'SSL Self-Signed Certificate';"
 
     elif shortcut == 'rc4':
-        sql_query = "select host_name, host_port, plugin_output from issues where plugin_name = 'SSL RC4 Cipher Suites Supported (Bar Mitzvah)';"
+        sql_query = "select 'Host : ' || host_name || ' on port ' || host_port, plugin_output from issues where plugin_name = 'SSL RC4 Cipher Suites Supported (Bar Mitzvah)';"
 
     elif shortcut == 'sslversion':
-        sql_query = "select host_name, host_port, plugin_output from issues where plugin_name = 'SSL / TLS Versions Supported';"
+        sql_query = "select 'Host : ' || host_name || ' on port ' || host_port, plugin_output from issues where plugin_name = 'SSL / TLS Versions Supported';"
     
     #elif shortcut == 
     #   "select distinct host_name from issues;"
@@ -323,11 +324,11 @@ def print_database_table_structure():
     table_structure = """
 [!] The 'issues' database is configured with the following fields
 
-host_name   VARCHAR(255),
-host_port   INTEGER,
+host_name       VARCHAR(255),
+host_port       INTEGER,
 plugin_name     VARCHAR(255),
 plugin_output   TEXT,
-severity    INTEGER
+severity        INTEGER
 
 
 """
@@ -343,17 +344,17 @@ def console_help():
 [] Parsenal Console Commands
 ------------------------------------------
 
-> help or ?         : Prints this help menu
+> help or ?             : Prints this help menu
 > output <filename>     : outputs the query to a filetype (csv, txt, doc)
 > get <common_plugin>   : get common plugins (patches, selfsigned, rc4, sslversion)
 > query "sql query"     : query "select distinct plugin_name from issues"   
-> select        : shorthand keyword for 'select' database queries
-> hosts         : shows all the unique host IP addresses in the database
-> plugins       : lists all plugin names in the current database
-> show          : show output status
-> history       : show command history
-> tables        : shows database table structure
-> exit          : exit the console
+> select                : shorthand keyword for 'select' database queries
+> hosts                 : shows all the unique host IP addresses in the database
+> plugins               : lists all plugin names in the current database
+> show                  : show output status
+> history               : show command history
+> tables                : shows database table structure
+> exit or quit          : exit the console
 
 """
     print console_help_menu
@@ -372,7 +373,7 @@ def main():
     #main_parser.add_argument("-m", "--mode", help="Program mode (nessus, john)", required=True)
     # Group to require either file or directory
     input_choice_group = parser.add_argument_group()
-    input_choice = input_choice_group.add_mutually_exclusive_group(required=True)
+    input_choice = input_choice_group.add_mutually_exclusive_group(required=False)
     input_choice.add_argument("-i", "--inputfile", help="Path to the file to parse")
     input_choice.add_argument("-dr", "--directory", help="Specify path to directory containing Files eg /path/folder/")
 
@@ -400,33 +401,35 @@ def main():
     setupDB(db_cursor)
     
     # TODO : keep the all_issues option, this cn be used as a choice, based on severity, so 0 = info, 1 = low, 2 = medium, 3 = high, 4 = critical
+    # will always use the infoplugins return below to push into the database regardless of severity
     all_issues = args.all_issues
     infoplugins = info_plugins()
     
     if not args.dbname:
         parser.print_help()
-    if args.directory:
-        list_directory = args.directory
-        if not list_directory.endswith("/"):
-            list_directory = list_directory + "/"
-        directory_to_parse = os.listdir(list_directory)
-        for directory_file in directory_to_parse:
-            if directory_file.endswith(".nessus"):
-                directory_file = (str(args.directory) + directory_file)
-                nessus_doc = directory_file
-                parse_nessus_file(nessus_doc, db, all_issues, infoplugins)
+    if args.dbname and not (args.directory or args.inputfile):
+        launch_console(db_cursor)
     else:
-        nessus_doc = args.inputfile
-        parse_nessus_file(nessus_doc, db, all_issues, infoplugins)
-
-    # now check to see if console switch was added
-    if args.console:
+        if args.directory:
+            list_directory = args.directory
+            if not list_directory.endswith("/"):
+                list_directory = list_directory + "/"
+            directory_to_parse = os.listdir(list_directory)
+            for directory_file in directory_to_parse:
+                if directory_file.endswith(".nessus"):
+                    directory_file = (str(args.directory) + directory_file)
+                    nessus_doc = directory_file
+                    parse_nessus_file(nessus_doc, db, all_issues, infoplugins)
+        else:
+            nessus_doc = args.inputfile
+            if nessus_doc.endswith(".nessus"):
+                parse_nessus_file(nessus_doc, db, all_issues, infoplugins)
+            else:
+                    print "[*] Parsenal Target : " + nessus_doc
+                    print "[!] Invalid filetype - expected extension = .nessus"
+                    sys.exit(1)
         launch_console(db_cursor)       
     
-    else:
-        print "Invalid File Type"
-    hrline = "-------------------------------------------------------------------------------------\n"
-
 
 #######################################################################
 #   Formating and helper functions
